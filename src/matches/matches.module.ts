@@ -3,13 +3,13 @@ import { MatchesService } from './matches.service';
 import { MatchesController } from './matches.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Match } from './entities/match.entity';
-import { PlayersService } from '../players/players.service';
 import { PlayersModule } from '../players/players.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   controllers: [MatchesController],
-  providers: [MatchesService, PlayersService],
-  imports: [TypeOrmModule.forFeature([Match]), PlayersModule],
-  exports: [TypeOrmModule],
+  providers: [MatchesService],
+  imports: [TypeOrmModule.forFeature([Match]), PlayersModule, CommonModule],
+  exports: [TypeOrmModule, MatchesService],
 })
 export class MatchesModule {}

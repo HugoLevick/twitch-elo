@@ -21,6 +21,7 @@ export class PlayersService {
       return player;
     } catch (error) {
       this.logger.error(error);
+      throw error;
     }
   }
 
@@ -34,6 +35,13 @@ export class PlayersService {
       take: 1,
     });
     if (!player) throw new NotFoundException('Couldnt find player ' + username);
+    return player;
+  }
+
+  async findOrCreate(username: string) {
+    let player = await this.findOne(username).catch(() => {
+      return this.create({ username });
+    });
     return player;
   }
 

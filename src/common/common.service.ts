@@ -3,13 +3,19 @@ import { promises as fs } from 'fs';
 import { UpdateOptionsDto } from './dto/update-channel.dto';
 import { Options } from './interfaces/options.interface';
 import { TmiService } from '../tmi/tmi.service';
+import { OnModuleInit } from '@nestjs/common/interfaces';
 
 @Injectable()
-export class CommonService {
+export class CommonService implements OnModuleInit {
   options: Options;
   private logger = new Logger();
 
-  constructor(private readonly tmiService: TmiService) {
+  constructor(
+    @Inject(forwardRef(() => TmiService))
+    private readonly tmiService: TmiService,
+  ) {}
+
+  onModuleInit() {
     this.setOptions();
   }
 

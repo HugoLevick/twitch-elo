@@ -34,9 +34,6 @@ export class Match {
   @JoinTable()
   players: Player[];
 
-  @ManyToOne(() => Game, (game) => game.matches)
-  game: Game;
-
   @CreateDateColumn()
   createdAt: Date;
 

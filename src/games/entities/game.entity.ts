@@ -24,9 +24,6 @@ export class Game {
   })
   maps: GameMap[];
 
-  @OneToMany(() => Match, (match) => match.game, {})
-  matches: Match[];
-
   @DeleteDateColumn({
     select: false,
   })
