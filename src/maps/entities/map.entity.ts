@@ -3,9 +3,11 @@ import {
   DeleteDateColumn,
   Entity,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Game } from '../../games/entities/game.entity';
+import { Match } from '../../matches/entities/match.entity';
 
 @Entity()
 export class GameMap {
@@ -21,6 +23,11 @@ export class GameMap {
     eager: true,
   })
   game: Game;
+
+  @OneToMany(() => Match, (match) => match.map, {
+    nullable: true,
+  })
+  matches: Match[];
 
   @DeleteDateColumn({
     select: false,

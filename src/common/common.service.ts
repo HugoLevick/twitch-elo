@@ -44,4 +44,8 @@ export class CommonService implements OnModuleInit {
       );
     }
   }
+
+  random(min: number, max: number) {
+    return Math.floor(Math.random() * max + min);
+  }
 }

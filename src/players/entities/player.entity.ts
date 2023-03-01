@@ -1,4 +1,12 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  OneToMany,
+} from 'typeorm';
+import { MatchTeams } from '../../matches/entities/matches-teams.entity';
 
 @Entity()
 export class Player {
@@ -12,9 +20,12 @@ export class Player {
   })
   username: string;
 
-  @Column('numeric', {
+  @Column('int', {
     default: 100,
     nullable: false,
   })
   points: number;
+
+  @OneToMany(() => MatchTeams, (team) => team.captain)
+  teams: MatchTeams[];
 }

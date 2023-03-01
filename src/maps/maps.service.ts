@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Equal } from 'typeorm';
 import { CreateMapDto } from './dto/create-map.dto';
 import { UpdateMapDto } from './dto/update-map.dto';
 import { GameMap } from './entities/map.entity';
@@ -43,6 +43,10 @@ export class MapsService {
     const [map] = await this.mapsRepository.find({ where: { id }, take: 1 });
     if (!map) throw new NotFoundException();
     return map;
+  }
+
+  async findGameMaps(gameId: number) {
+    return this.mapsRepository.find({ where: { game: Equal(gameId) } });
   }
 
   update(id: number, updateMapDto: UpdateMapDto) {

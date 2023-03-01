@@ -2,12 +2,16 @@ import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import * as tmi from 'tmi.js';
 import { MatchesService } from '../matches/matches.service';
 import { Match } from '../matches/entities/match.entity';
+import { CommonService } from '../common/common.service';
 
 @Injectable()
 export class TmiService {
   constructor(
     @Inject(forwardRef(() => MatchesService))
     private readonly matchesService: MatchesService,
+
+    @Inject(forwardRef(() => CommonService))
+    private readonly commonService: CommonService,
   ) {}
 
   private tmiClient: tmi.Client;
@@ -40,9 +44,10 @@ export class TmiService {
     client.on('chat', async (channel, tags, message, self) => {
       if (self) return;
       if (message.startsWith('++')) {
-        const { match, playersPerTeam } = await this.addToQueue(tags.username);
-        if (match) {
-          this.tmiClient.say(
+        const { playersPerTeam } = this.commonService.options;
+        const match = await this.addToQueue(tags.username);
+        if (match && match.players.length !== playersPerTeam * 2) {
+          this.say(
             channel,
             this.getMatchPlayersToString(match, playersPerTeam),
           );
@@ -51,9 +56,8 @@ export class TmiService {
       }
 
       if (message.startsWith('--')) {
-        const { match, playersPerTeam } = await this.removeFromQueue(
-          tags.username,
-        );
+        const { playersPerTeam } = this.commonService.options;
+        const match = await this.removeFromQueue(tags.username);
         if (match) {
           this.tmiClient.say(
             channel,
@@ -62,38 +66,98 @@ export class TmiService {
         }
         return;
       }
+
+      if (message.startsWith('!')) {
+        const params = message.split(' ');
+        const command = params.shift();
+        const { bottedChannel, playersPerTeam } = this.commonService.options;
+        switch (command) {
+          case '!who':
+            const currentMatches =
+              await this.matchesService.getCurrentMatches();
+            if (currentMatches.length === 0) {
+              await this.say(bottedChannel, '-- No matches --');
+              return;
+            }
+            for (const match of currentMatches) {
+              await this.say(
+                bottedChannel,
+                this.getMatchPlayersToString(match, playersPerTeam),
+              );
+            }
+            break;
+
+          case '!queue':
+            const match = await this.matchesService.findLatest();
+            if (!match) {
+              await this.say(bottedChannel, '-- No queues --');
+              return;
+            }
+            await this.say(
+              bottedChannel,
+              this.getMatchPlayersToString(match, playersPerTeam),
+            );
+            break;
+
+          case '!vote':
+            const mapVoteNumber = parseInt(params[0]);
+            if (isNaN(mapVoteNumber)) return;
+
+            try {
+              if (mapVoteNumber <= 3) {
+                await this.say(
+                  bottedChannel,
+                  `${tags.username} voted for map ${mapVoteNumber}`,
+                );
+              } else {
+                await this.say(
+                  bottedChannel,
+                  `${tags.username} omitted voting`,
+                );
+              }
+              await this.matchesService.vote(tags.username, mapVoteNumber);
+            } catch (error) {
+              this.logger.error(error.message);
+            }
+            break;
+        }
+      }
     });
+  }
+
+  async say(channel: string, message: string) {
+    await this.tmiClient.say(channel, message);
+    return;
   }
 
   getMatchPlayersToString(match: Match, playersPerTeam: number) {
     if (match.players.length === 0)
-      return `0/${playersPerTeam * 2} - No one in queue`;
+      return `#${match.id} 0/${playersPerTeam * 2} - No one in queue`;
     let playerNamesArray: string[] = [];
     for (const player of match.players) {
       playerNamesArray.push(player.username);
     }
     //prettier-ignore
-    return `${match.players.length}/${playersPerTeam*2} (${playerNamesArray.join(' / ')})`;
+    return `#${match.id} ${match.players.length}/${playersPerTeam*2} (${playerNamesArray.join(' / ')})`;
   }
 
   async addToQueue(username: string) {
     try {
-      const data = await this.matchesService.addPlayerToQueue(username);
-      return data;
+      const match = await this.matchesService.addPlayerToQueue(username);
+      return match;
     } catch (error) {
-      this.logger.warn(username + ' is already in a queue or match');
-      return { match: undefined, playersPerTeam: undefined };
+      this.logger.warn(error.message);
+      return;
     }
   }
 
   async removeFromQueue(username: string) {
     try {
-      const data = await this.matchesService.removePlayerFromQueue(username);
-      return data;
+      const match = await this.matchesService.removePlayerFromQueue(username);
+      return match;
     } catch (error) {
-      console.log(error);
-      this.logger.warn(username + ' was not in the queue');
-      return { match: undefined, playersPerTeam: undefined };
+      this.logger.warn(error.message);
+      return;
     }
   }
 }
