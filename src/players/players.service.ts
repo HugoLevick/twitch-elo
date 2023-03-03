@@ -45,11 +45,17 @@ export class PlayersService {
     return player;
   }
 
-  update(id: number, updatePlayerDto: UpdatePlayerDto) {
-    return `This action updates a #${id} player`;
+  async update(id: number, updatePlayerDto: UpdatePlayerDto) {
+    await this.playerRepository.update(id, { points: updatePlayerDto.points });
+    return true;
   }
 
   remove(id: number) {
     return `This action removes a #${id} player`;
+  }
+
+  async getElo(username: string) {
+    const player = await this.findOrCreate(username);
+    return player.points;
   }
 }

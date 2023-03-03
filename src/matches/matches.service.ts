@@ -16,6 +16,8 @@ import { GameMap } from '../maps/entities/map.entity';
 import { MatchesTeamsEnum, MatchTeams } from './entities/matches-teams.entity';
 import { Player } from '../players/entities/player.entity';
 import { OnModuleInit } from '@nestjs/common/interfaces';
+import { AddDevDto } from './dto/add-dev.dto';
+const EloRank = require('elo-rank');
 
 interface Votes {
   [mapId: number]: number;
@@ -31,10 +33,20 @@ interface Voting {
   };
 }
 
+interface Picks {
+  [matchId: number]: {
+    available: Player[];
+    pickTurn: number;
+    timer;
+  };
+}
+
 @Injectable()
 export class MatchesService implements OnModuleInit {
   private logger = new Logger('MatchesService');
   private mapVoting: Voting = {};
+  private matchPicks: Picks = {};
+  private eloRank = new EloRank(30);
 
   constructor(
     private readonly tmiService: TmiService,
@@ -59,7 +71,11 @@ export class MatchesService implements OnModuleInit {
       .getMany();
 
     for (const match of previousMatches) {
-      this.remove(match.id);
+      try {
+        await this.remove(match.id);
+      } catch (error) {
+        this.logger.error(error.message);
+      }
     }
   }
 
@@ -69,12 +85,26 @@ export class MatchesService implements OnModuleInit {
     return match;
   }
 
+  async devAddPlayers(addDevDto: AddDevDto) {
+    const { players, skipVote } = addDevDto;
+    let match: Match;
+    for (const username of players) {
+      match = await this.tmiService.addToQueue(username);
+    }
+
+    if (this.mapVoting[match.id]) clearTimeout(this.mapVoting[match.id].timer);
+    if (skipVote) await this.decideMap(match);
+    await this.startPickPhase(match);
+  }
+
   findAll() {
     return `This action returns all matches`;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} match`;
+  async findOne(id: number) {
+    const match = await this.matchesRepository.findOneBy({ id });
+    if (!match) throw new Error(`Match ${id} not found`);
+    return match;
   }
 
   async findLatest() {
@@ -94,8 +124,9 @@ export class MatchesService implements OnModuleInit {
         id: playerId,
       })
       .getOne();
-    if (!match) throw new Error(`Player ${playerId} isnt in a match`);
-    return match;
+    if (!match)
+      throw new Error(`Player ${playerId} was not in a match in progress`);
+    return match.id;
   }
 
   update(id: number, updateMatchDto: UpdateMatchDto) {
@@ -103,13 +134,15 @@ export class MatchesService implements OnModuleInit {
   }
 
   async remove(id: number) {
-    try {
-      await this.matchesRepository.softDelete({ id });
-      return true;
-    } catch (error) {
-      this.logger.error(error.message);
-      return false;
-    }
+    const match = await this.matchesRepository.findOne({
+      where: {
+        id: Equal(id),
+        deletedAt: null,
+      },
+    });
+    if (!match) throw new Error(`Match #${id} not found or already canceled`);
+    await this.matchesRepository.softDelete({ id });
+    return true;
   }
 
   async addPlayerToQueue(username: string) {
@@ -137,7 +170,7 @@ export class MatchesService implements OnModuleInit {
     await this.matchesRepository.save(match);
 
     if (match.players.length === playersPerTeam * 2)
-      await this.startMatch(match, this.commonService.options.bottedChannel);
+      await this.startMatch(match);
 
     return match;
   }
@@ -159,7 +192,8 @@ export class MatchesService implements OnModuleInit {
     return match;
   }
 
-  async startMatch(match: Match, channelName: string) {
+  //Sets the match status to In Progress, chooses captains, creates empty teams (only captains), and starts voting timer
+  async startMatch(match: Match) {
     const { gameId, bottedChannel, cancelVoteTimeout } =
       this.commonService.options;
     match.status = MatchStatuses.inProgress;
@@ -238,22 +272,34 @@ export class MatchesService implements OnModuleInit {
   }
 
   async cancelMatch(matchId: number, reason: string) {
-    await this.remove(matchId);
-    delete this.mapVoting[matchId];
-    await this.tmiService.say(
-      this.commonService.options.bottedChannel,
-      `Match #${matchId} canceled: ${reason}`,
-    );
+    try {
+      await this.remove(matchId);
+      delete this.mapVoting[matchId];
+      await this.tmiService.say(
+        this.commonService.options.bottedChannel,
+        `Match #${matchId} canceled: ${reason}`,
+      );
+      return true;
+    } catch (error) {
+      this.logger.error(error);
+      return false;
+    }
   }
 
+  //Registers the vote from someone if the match exists in the mapVoting object
   async vote(username: string, mapId: number) {
     const player = await this.playersService.findOne(username);
     let match: Match;
     try {
-      match = await this.findPlaying(player.id);
+      const matchId = await this.findPlaying(player.id);
+      match = await this.findOne(matchId);
     } catch (error) {
       this.logger.error(error.message);
       return false;
+    }
+
+    if (!this.mapVoting[match.id]) {
+      throw new Error(`Match #${match.id} isn't in voting phase`);
     }
 
     if (this.mapVoting[match.id].haveVoted.find((p) => p.id === player.id))
@@ -270,18 +316,22 @@ export class MatchesService implements OnModuleInit {
       this.mapVoting[match.id].haveVoted.length
     ) {
       clearTimeout(this.mapVoting[match.id].timer);
-      this.startPickPhase(match);
+      try {
+        await this.decideMap(match);
+        await this.startPickPhase(match);
+      } catch (error) {
+        this.logger.error(error.message);
+      }
+      return false;
     }
 
     return true;
   }
 
-  async startPickPhase(match: Match) {
+  //Decides maps provided with this.mapVoting based on votes
+  async decideMap(match: Match) {
+    //Decide map
     const { bottedChannel } = this.commonService.options;
-    this.tmiService.say(
-      bottedChannel,
-      'Vote phase ended! Pick phase starts now',
-    );
 
     let mostVoted: { votes: number; voteId: number }[] = [];
     const voteKeys = Object.keys(this.mapVoting[match.id].votes);
@@ -309,14 +359,301 @@ export class MatchesService implements OnModuleInit {
 
     await this.tmiService.say(
       bottedChannel,
-      `Map ${mapWinner.name} won the votation`,
+      `Map ${mapWinner.name} won the vote`,
     );
 
-    await this.cancelMatch(
-      match.id,
-      'Test goes this far, stay tuned for more :)',
-    );
+    match.map = mapWinner;
+    await this.matchesRepository.save(match);
+    return true;
+  }
+
+  //Deletes the match from the mapVoting object
+  async startPickPhase(match: Match) {
     delete this.mapVoting[match.id];
+    const { cancelPickTimeout, bottedChannel, pickOrder } =
+      this.commonService.options;
+
+    const { teamA, teamB } = await this.getMatchTeams(match.id);
+
+    const availablePlayers = match.players.filter(
+      (p) => p.id !== teamA.captain.id && p.id !== teamB.captain.id,
+    );
+
+    if (availablePlayers.length === 0) {
+      this.startPlaying(match, teamA, teamB);
+      return;
+    }
+
+    //If picks are needed
+    this.matchPicks[match.id] = {
+      available: availablePlayers,
+      pickTurn: 0,
+      timer: setTimeout(() => {
+        this.cancelMatch(match.id, 'Someone took too long to pick');
+      }, cancelPickTimeout * 1000),
+    };
+
+    await this.tmiService.say(
+      bottedChannel,
+      `Team A captain: ${teamA.captain.username}`,
+    );
+
+    await this.tmiService.say(
+      bottedChannel,
+      `Team B captain: ${teamB.captain.username}`,
+    );
+
+    await this.tmiService.say(bottedChannel, `Pick order: ${pickOrder}`);
+
+    await this.sayPickTurn(match.id, teamA, teamB, availablePlayers);
+  }
+
+  async getMatchTeams(matchId: number) {
+    const teamA = await this.matchTeamsRepository.findOne({
+      where: {
+        match: Equal(matchId),
+        letter: MatchesTeamsEnum.a,
+      },
+    });
+
+    const teamB = await this.matchTeamsRepository.findOne({
+      where: {
+        match: Equal(matchId),
+        letter: MatchesTeamsEnum.b,
+      },
+    });
+
+    return { teamA, teamB };
+  }
+
+  async pick(username: string, pickedUsername: string) {
+    const { bottedChannel } = this.commonService.options;
+    const player = await this.playersService.findOne(username);
+    let match: Match;
+    try {
+      const matchId = await this.findPlaying(player.id);
+      match = await this.findOne(matchId);
+    } catch (error) {
+      this.logger.error(error.message);
+      return false;
+    }
+
+    const { teamA, teamB } = await this.getMatchTeams(match.id);
+
+    const teamTurn = this.verifyCaptainTurn(match.id, teamA, teamB);
+    if (teamTurn.captain.id !== player.id) return;
+
+    const matchPicks = this.matchPicks[match.id];
+    if (!matchPicks) throw new Error(`Match #${match.id} isn't in pick phase`);
+
+    const playerPickedIndex = matchPicks.available.findIndex(
+      (p) => p.username === pickedUsername,
+    );
+
+    if (playerPickedIndex === -1) {
+      this.resetPickTimer(match.id);
+      await this.tmiService.say(
+        bottedChannel,
+        `'${pickedUsername}' was not in the list`,
+      );
+
+      await this.sayPickTurn(match.id, teamA, teamB, matchPicks.available);
+
+      throw new Error(
+        `${username} tried to pick someone who wasnt on the list`,
+      );
+    }
+
+    const [playerPicked] = matchPicks.available.splice(playerPickedIndex, 1);
+
+    teamTurn.players.push(playerPicked);
+    await this.matchTeamsRepository.save(teamTurn);
+
+    await this.tmiService.say(
+      bottedChannel,
+      `${username} picked ${pickedUsername}`,
+    );
+    this.resetPickTimer(match.id);
+
+    matchPicks.pickTurn++;
+
+    if (matchPicks.available.length !== 1) {
+      //There is more than one player available
+      await this.sayPickTurn(match.id, teamA, teamB, matchPicks.available);
+    } else {
+      const lastPickTeam = this.verifyCaptainTurn(match.id, teamA, teamB);
+      lastPickTeam.players.push(matchPicks.available[0]);
+      await this.matchTeamsRepository.save(lastPickTeam);
+      this.startPlaying(match, teamA, teamB);
+    }
+  }
+
+  resetPickTimer(matchId: number) {
+    const { cancelPickTimeout } = this.commonService.options;
+
+    const matchPick = this.matchPicks[matchId];
+    if (!matchPick)
+      throw new Error(
+        `Couldn't reset pick timer of match #${matchId}: Not Found`,
+      );
+
+    clearTimeout(matchPick.timer);
+
+    matchPick.timer = setTimeout(() => {
+      this.cancelMatch(matchId, 'Someone took too long to pick');
+    }, cancelPickTimeout * 1000);
+  }
+
+  verifyCaptainTurn(matchId: number, teamA: MatchTeams, teamB: MatchTeams) {
+    const { pickOrder } = this.commonService.options;
+    const teams: { [letter: string]: MatchTeams } = {
+      A: teamA,
+      B: teamB,
+    };
+
+    const pickTurn = this.matchPicks[matchId].pickTurn;
+    const teamTurn = teams[pickOrder[pickTurn]];
+    return teamTurn;
+  }
+
+  async sayPickTurn(
+    matchId: number,
+    teamA: MatchTeams,
+    teamB: MatchTeams,
+    availablePlayers: Player[],
+  ) {
+    const { pickOrder, bottedChannel } = this.commonService.options;
+    const teams: { [letter: string]: MatchTeams } = {
+      A: teamA,
+      B: teamB,
+    };
+
+    const pickTurn = this.matchPicks[matchId].pickTurn;
+    const teamToPick = teams[pickOrder[pickTurn]];
+
+    await this.tmiService.say(
+      bottedChannel,
+      `@${teamToPick.captain.username}, it's your turn to pick!`,
+    );
+
+    await this.tmiService.say(
+      bottedChannel,
+      `(${availablePlayers
+        .map((p) => p.username)
+        .join(' / ')}) pick with !p (username)`,
+    );
+  }
+
+  //Runs when everyone has voted and picked their team
+  async startPlaying(match: Match, teamA: MatchTeams, teamB: MatchTeams) {
+    const { bottedChannel } = this.commonService.options;
+    const matchPick = this.matchPicks[match.id];
+    if (matchPick) clearTimeout(matchPick.timer);
+    delete this.matchPicks[match.id];
+    await this.tmiService.say(
+      bottedChannel,
+      `Pick phase for match #${match.id} ended! These are the final teams:`,
+    );
+
+    await this.tmiService.say(
+      bottedChannel,
+      `Team A: (${this.teamPlayersToString(teamA)})`,
+    );
+
+    await this.tmiService.say(
+      bottedChannel,
+      `Team B: (${this.teamPlayersToString(teamB)})`,
+    );
+  }
+
+  async reportLose(username: string) {
+    const { bottedChannel } = this.commonService.options;
+    let matchId: number;
+    let match: Match;
+    let player: Player;
+    let playerCaptain: 'A' | 'B';
+    try {
+      player = await this.playersService.findOne(username);
+      matchId = await this.findPlaying(player.id);
+      match = await this.findOne(matchId);
+    } catch (error) {
+      this.logger.error(error.message);
+      return;
+    }
+
+    const { teamA, teamB } = await this.getMatchTeams(matchId);
+
+    if (player.id === teamA.captain.id) {
+      playerCaptain = 'A';
+    } else if (player.id === teamB.captain.id) {
+      playerCaptain = 'B';
+    } else return;
+
+    let teamAPoints = 0;
+    for (const member of teamA.players) {
+      teamAPoints += member.points;
+    }
+
+    let teamBPoints = 0;
+    for (const member of teamB.players) {
+      teamBPoints += member.points;
+    }
+
+    const expectedScoreA = this.eloRank.getExpected(teamAPoints, teamBPoints);
+    const expectedScoreB = this.eloRank.getExpected(teamBPoints, teamAPoints);
+
+    const updatedPointsA = this.eloRank.updateRating(
+      expectedScoreA,
+      playerCaptain === 'A' ? 0 : 1,
+      teamAPoints,
+    );
+
+    const updatedPointsB = this.eloRank.updateRating(
+      expectedScoreB,
+      playerCaptain === 'B' ? 0 : 1,
+      teamBPoints,
+    );
+
+    const pointDifferenceA = updatedPointsA - teamAPoints;
+    const pointDifferenceB = updatedPointsB - teamBPoints;
+
+    const updatePointsPromises = [];
+
+    try {
+      for (const member of teamA.players) {
+        updatePointsPromises.push(
+          this.playersService.update(member.id, {
+            points: Math.max(member.points + pointDifferenceA, 0),
+          }),
+        );
+      }
+
+      for (const member of teamB.players) {
+        updatePointsPromises.push(
+          this.playersService.update(member.id, {
+            points: Math.max(member.points + pointDifferenceB, 0),
+          }),
+        );
+      }
+
+      await Promise.all(updatePointsPromises);
+
+      await this.matchesRepository.update(match.id, {
+        status: MatchStatuses.ended,
+      });
+
+      await this.tmiService.say(
+        bottedChannel,
+        `Match #${match.id} has ended, Team A players got ${pointDifferenceA} points and Team B players got ${pointDifferenceB} points`,
+      );
+    } catch (error) {
+      this.logger.error(error.message);
+      this.cancelMatch(match.id, 'There was a problem updating the points');
+    }
+  }
+
+  private teamPlayersToString(team: MatchTeams) {
+    return team.players.map((p) => p.username).join(' / ');
   }
 
   getCurrentMatches() {

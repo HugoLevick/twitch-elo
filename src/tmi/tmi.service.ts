@@ -3,10 +3,13 @@ import * as tmi from 'tmi.js';
 import { MatchesService } from '../matches/matches.service';
 import { Match } from '../matches/entities/match.entity';
 import { CommonService } from '../common/common.service';
+import { PlayersService } from '../players/players.service';
 
 @Injectable()
 export class TmiService {
   constructor(
+    private readonly playersService: PlayersService,
+
     @Inject(forwardRef(() => MatchesService))
     private readonly matchesService: MatchesService,
 
@@ -104,18 +107,63 @@ export class TmiService {
             if (isNaN(mapVoteNumber)) return;
 
             try {
-              if (mapVoteNumber <= 3) {
-                await this.say(
-                  bottedChannel,
-                  `${tags.username} voted for map ${mapVoteNumber}`,
-                );
-              } else {
-                await this.say(
-                  bottedChannel,
-                  `${tags.username} omitted voting`,
-                );
+              const didVote = await this.matchesService.vote(
+                tags.username,
+                mapVoteNumber,
+              );
+
+              if (didVote) {
+                if (mapVoteNumber <= 3) {
+                  await this.say(
+                    bottedChannel,
+                    `${tags.username} voted for map ${mapVoteNumber}`,
+                  );
+                } else {
+                  await this.say(
+                    bottedChannel,
+                    `${tags.username} omitted voting`,
+                  );
+                }
               }
-              await this.matchesService.vote(tags.username, mapVoteNumber);
+            } catch (error) {
+              this.logger.error(error.message);
+            }
+            break;
+
+          case '!p':
+            const pickedUsername = params[0].replace('@', '');
+            if (!pickedUsername) return;
+            try {
+              await this.matchesService.pick(tags.username, pickedUsername);
+            } catch (error) {
+              this.logger.error(error.message);
+            }
+            break;
+
+          case '!rl':
+            await this.matchesService.reportLose(tags.username);
+
+          case '!cancelmatch':
+            if (this.hasPrivilege(tags)) {
+              const matchId = parseInt(params[0]);
+              if (isNaN(matchId)) return;
+              const canceled = await this.matchesService.cancelMatch(
+                matchId,
+                'Request to cancel by mod/broadcaster',
+              );
+
+              if (!canceled)
+                await this.say(
+                  channel,
+                  `@${tags.username} Match #${matchId} not found or already canceled`,
+                );
+            }
+            break;
+
+          case '!elopoints':
+            try {
+              const points = await this.playersService.getElo(tags.username);
+              await this.say(channel, `@${tags.username}: ${points} points`);
             } catch (error) {
               this.logger.error(error.message);
             }
@@ -159,5 +207,9 @@ export class TmiService {
       this.logger.warn(error.message);
       return;
     }
+  }
+
+  hasPrivilege(tags) {
+    return tags.mod || tags.badges.broadcaster;
   }
 }
