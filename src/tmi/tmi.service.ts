@@ -72,7 +72,7 @@ export class TmiService {
 
       if (message.startsWith('!')) {
         const params = message.split(' ');
-        const command = params.shift();
+        const command = params.shift().toLowerCase();
         const { bottedChannel, playersPerTeam } = this.commonService.options;
         switch (command) {
           case '!who':
@@ -131,7 +131,7 @@ export class TmiService {
             break;
 
           case '!p':
-            const pickedUsername = params[0].replace('@', '');
+            const pickedUsername = this.formatUsername(params[0]);
             if (!pickedUsername) return;
             try {
               await this.matchesService.pick(tags.username, pickedUsername);
@@ -141,7 +141,13 @@ export class TmiService {
             break;
 
           case '!rl':
-            await this.matchesService.reportLose(tags.username);
+            if (params[0] && this.hasPrivilege(tags)) {
+              await this.matchesService.reportLose(
+                this.formatUsername(params[0]),
+              );
+            } else {
+              await this.matchesService.reportLose(tags.username);
+            }
 
           case '!cancelmatch':
             if (this.hasPrivilege(tags)) {
@@ -166,6 +172,43 @@ export class TmiService {
               await this.say(channel, `@${tags.username}: ${points} points`);
             } catch (error) {
               this.logger.error(error.message);
+            }
+            break;
+
+          case '!subme':
+            await this.matchesService.subMe(tags.username);
+            break;
+
+          case '!subfor':
+            try {
+              await this.matchesService.subFor(
+                tags.username,
+                this.formatUsername(params[0]),
+              );
+            } catch (error) {
+              this.logger.error(error.message);
+              return;
+            }
+            break;
+
+          case '!capme':
+            try {
+              await this.matchesService.capMe(tags.username);
+            } catch (error) {
+              this.logger.error(error.message);
+              return;
+            }
+            break;
+
+          case '!capfor':
+            try {
+              await this.matchesService.capFor(
+                tags.username,
+                this.formatUsername(params[0]),
+              );
+            } catch (error) {
+              this.logger.error(error.message);
+              return;
             }
             break;
         }
@@ -209,7 +252,11 @@ export class TmiService {
     }
   }
 
-  hasPrivilege(tags) {
+  private hasPrivilege(tags) {
     return tags.mod || tags.badges.broadcaster;
+  }
+
+  private formatUsername(string: string) {
+    return string.replace('@', '').toLowerCase();
   }
 }

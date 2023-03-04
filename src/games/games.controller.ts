@@ -10,6 +10,7 @@ import {
 import { GamesService } from './games.service';
 import { CreateGameDto } from './dto/create-game.dto';
 import { UpdateGameDto } from './dto/update-game.dto';
+import { ParseIntPipe } from '@nestjs/common/pipes';
 
 @Controller('games')
 export class GamesController {
@@ -26,8 +27,13 @@ export class GamesController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: string) {
     return this.gamesService.findOne(+id);
+  }
+
+  @Get(':id/maps')
+  findGameMaps(@Param('id', ParseIntPipe) id: string) {
+    return this.gamesService.findMaps(+id);
   }
 
   @Patch(':id')

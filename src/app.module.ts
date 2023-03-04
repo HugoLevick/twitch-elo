@@ -9,9 +9,15 @@ import { TmiModule } from './tmi/tmi.module';
 import { CommonModule } from './common/common.module';
 import { GamesModule } from './games/games.module';
 import { MapsModule } from './maps/maps.module';
+import { join } from 'path';
+import { ServeStaticModule } from '@nestjs/serve-static';
 
 @Module({
   imports: [
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+    }),
+
     TmiModule,
 
     MatchesModule,

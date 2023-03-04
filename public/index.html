@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <!-- Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css"
+      integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+      crossorigin="anonymous"
+    />
+
+    <title>Twitch Elo</title>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <a class="navbar-brand" href="#">
+        <h3>Elo settings</h3>
+      </a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-toggle="collapse"
+        data-target="#navbarSupportedContent"
+        aria-controls="navbarSupportedContent"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="/">Settings</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="games.html">Games</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="maps.html">Maps</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container">
+      <form id="settings-form">
+        <div class="form-group">
+          <label for="bottedChannel">Twitch Channel</label>
+          <input
+            type="text"
+            class="form-control"
+            id="bottedChannel"
+            aria-describedby="channelHelp"
+            placeholder="Enter channel"
+          />
+          <small id="channelHelp" class="form-text text-muted"
+            >Where the bot will listen for commands. Remember to mod
+            Henzzito</small
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="gameId">Game</label>
+          <select class="custom-select" id="gameId" aria-describedby="gameHelp">
+            <option selected disabled>Create a game</option>
+          </select>
+          <small id="gameHelp" class="form-text text-muted"
+            >Game that will be played. Maps will be randomly selected from this
+            game.</small
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="playersPerTeam">Players per team</label>
+          <input
+            type="number"
+            class="form-control"
+            id="playersPerTeam"
+            aria-describedby="playersHelp"
+            placeholder="Number of players per team"
+          />
+          <small id="playersHelp" class="form-text text-muted"
+            >How many players will each team have?</small
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="pickOrder">Pick Order</label>
+          <input
+            type="text"
+            class="form-control"
+            id="pickOrder"
+            aria-describedby="pickHelp"
+            placeholder="Pick order"
+          />
+          <small id="pickHelp" class="form-text text-muted"
+            >How will captains pick their teammates? Being A the captain with
+            less points. Example for a 4v4 game: ABBAABBA</small
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="voteTimeout">Vote Timeout (seconds)</label>
+          <input
+            type="text"
+            class="form-control"
+            id="voteTimeout"
+            aria-describedby="voteHelp"
+            placeholder="Vote timeout"
+          />
+          <small id="voteHelp" class="form-text text-muted"
+            >Time (in seconds) after which the match that has started the vote
+            phase will be canceled if someone didn't vote</small
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="pickTimeout">Pick Timeout (seconds)</label>
+          <input
+            type="text"
+            class="form-control"
+            id="pickTimeout"
+            aria-describedby="pickHelp"
+            placeholder="Pick timeout"
+          />
+          <small id="pickHelp" class="form-text text-muted"
+            >Time (in seconds) after which the match that has started the pick
+            phase will be canceled if someone didn't pick</small
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="requireVote">Require Vote Phase</label>
+          <input
+            type="checkbox"
+            class="form-control"
+            aria-describedby="votePhaseHelp"
+            id="requireVote"
+          />
+          <small id="votePhaseHelp" class="form-text text-muted"
+            >If checked, all matches will have a vote phase before the picking
+            phase starts.</small
+          >
+        </div>
+
+        <div class="form-group">
+          <input
+            type="submit"
+            class="form-control btn btn-primary"
+            aria-describedby="submitHelp"
+          />
+          <small id="submitHelp" class="form-text text-muted"
+            >Save the settings (this will cancel the queue and games in
+            progress)</small
+          >
+        </div>
+      </form>
+
+      <footer>
+        <h5>Made with 🧡 by h_levick</h5>
+      </footer>
+    </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script
+      src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+      integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js"
+      integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js"
+      integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+      crossorigin="anonymous"
+    ></script>
+    <script defer src="index-script.js"></script>
+  </body>
+</html>

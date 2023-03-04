@@ -4,32 +4,42 @@ import {
   MinLength,
   IsNumber,
   Min,
+  IsBoolean,
 } from 'class-validator';
 
 export class UpdateOptionsDto {
   @IsString()
   @MinLength(1)
   @IsOptional()
-  bottedChannel: string;
+  bottedChannel?: string;
 
   @IsString()
   @MinLength(1)
   @IsOptional()
-  pickOrder: string;
+  pickOrder?: string;
 
   @IsNumber()
   @Min(1)
   @IsOptional()
-  playersPerTeam: number;
+  playersPerTeam?: number;
 
   @IsNumber()
   @Min(0)
   @IsOptional()
-  gameId: number;
+  gameId?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  requireVotePhase?: boolean;
 
   //How many seconds have to pass to cancel a match in votation / pick phase
   @IsNumber()
   @Min(0)
   @IsOptional()
-  cancelMatchTimeout: number;
+  cancelVoteTimeout?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  cancelPickTimeout?: number;
 }

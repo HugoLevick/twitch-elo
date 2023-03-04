@@ -5,4 +5,5 @@ export interface Options {
   gameId: number;
   cancelVoteTimeout: number;
   cancelPickTimeout: number;
+  requireVotePhase: boolean;
 }

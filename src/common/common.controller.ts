@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Get, Put } from '@nestjs/common';
 import { CommonService } from './common.service';
 import { UpdateOptionsDto } from './dto/update-channel.dto';
 
@@ -6,8 +6,13 @@ import { UpdateOptionsDto } from './dto/update-channel.dto';
 export class CommonController {
   constructor(private readonly commonService: CommonService) {}
 
-  @Post('update')
+  @Put('update')
   updateChannel(@Body() updateOptionsDto: UpdateOptionsDto) {
     return this.commonService.updateOptions(updateOptionsDto);
+  }
+
+  @Get()
+  getOptions() {
+    return this.commonService.options;
   }
 }

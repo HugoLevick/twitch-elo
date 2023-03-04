@@ -46,7 +46,9 @@ export class MapsService {
   }
 
   async findGameMaps(gameId: number) {
-    return this.mapsRepository.find({ where: { game: Equal(gameId) } });
+    return this.mapsRepository.find({
+      where: { game: Equal(gameId) },
+    });
   }
 
   update(id: number, updateMapDto: UpdateMapDto) {

@@ -4,6 +4,8 @@ import { UpdateOptionsDto } from './dto/update-channel.dto';
 import { Options } from './interfaces/options.interface';
 import { TmiService } from '../tmi/tmi.service';
 import { OnModuleInit } from '@nestjs/common/interfaces';
+import { BadRequestException } from '@nestjs/common/exceptions';
+import { MatchesService } from '../matches/matches.service';
 
 @Injectable()
 export class CommonService implements OnModuleInit {
@@ -13,6 +15,9 @@ export class CommonService implements OnModuleInit {
   constructor(
     @Inject(forwardRef(() => TmiService))
     private readonly tmiService: TmiService,
+
+    @Inject(forwardRef(() => MatchesService))
+    private readonly matchesService: MatchesService,
   ) {}
 
   onModuleInit() {
@@ -32,8 +37,29 @@ export class CommonService implements OnModuleInit {
   }
 
   async updateOptions(updateOptionsDto: UpdateOptionsDto) {
-    this.options = { ...this.options, ...updateOptionsDto };
+    const updatedOptions = { ...this.options, ...updateOptionsDto };
+
+    if (
+      updatedOptions.pickOrder.length !== updatedOptions.playersPerTeam * 2 ||
+      !updatedOptions.pickOrder.match(/^[AB]+$/)
+    )
+      if (updatedOptions.playersPerTeam === 1) updatedOptions.pickOrder = 'AB';
+      else
+        throw new BadRequestException(
+          'Please provide a correct pick order. It must include only uppercase A and B and it should let both captains pick all the players',
+        );
+
+    if (
+      updatedOptions.pickOrder.match(/A/g).length !==
+      updatedOptions.playersPerTeam
+    )
+      throw new BadRequestException(
+        'One team cannot pick more players than the other, please review the pick order',
+      );
+
     try {
+      await this.matchesService.cancelAllActive();
+      this.options = updatedOptions;
       await fs.writeFile('./src/options.json', JSON.stringify(this.options));
       await this.tmiService.stopBot();
       await this.tmiService.startBot(this.options.bottedChannel);
@@ -42,6 +68,7 @@ export class CommonService implements OnModuleInit {
       this.logger.error(
         `Got an error trying to read the file: ${error.message}`,
       );
+      throw error;
     }
   }
 
