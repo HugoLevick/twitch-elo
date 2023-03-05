@@ -2,37 +2,44 @@
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+# Twitch-Elo
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Twitch-Elo is a twitch bot built with NestJS and PostgreSQL that can be used on a channel chat to host matches for every game where there are 2 teams and an even number of players in each team.
+
+It ranks every player with the ELO algorithm depending on their losses and wins
 
 ## Installation
 
 ```bash
+#development
 $ npm install
+
+#production (use this one if you're not developing it)
+$ npm install --omit-dev
 ```
 
 ## Running the app
+
+Before running the app, you need to make a copy of the `.env.template` file and rename it to `.env`. After that, open the file and fill in the environment variables. This is a quick rundown of their function:
+
+### DB_HOST
+
+Where the database is hosted. Examples: localhost, https://railway.com/database
+
+- ### DB_PORT
+  The port at which the database can be accessed.
+- ### DB_NAME
+  The name of the database where data will be stored
+- ### DB_USERNAME
+  The username of the user who has access to the database
+- ### DB_PASSWORD
+  The password of the user who has access to the database
+- ### PORT
+  Port where the application will be running
+
+After filling in the variables, choose one of these commands to run (remember to run them in the root of the app)
 
 ```bash
 # development
@@ -41,32 +48,58 @@ $ npm run start
 # watch mode
 $ npm run start:dev
 
-# production mode
+# production mode (use this one if you're not developing it)
 $ npm run start:prod
 ```
 
-## Test
+## Commands
 
-```bash
-# unit tests
-$ npm run test
+This is a list of every command available. These can be used in the twitch chat that the bot is listening to
 
-# e2e tests
-$ npm run test:e2e
+### ++
 
-# test coverage
-$ npm run test:cov
-```
+Adds the player who sent the message to the queue
 
-## Support
+### --
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Removes the player who sent the message from the queue
+
+### !queue
+
+Shows the players waiting in queue
+
+### !who
+
+Shows the active matches
+
+### !vote (number)
+
+Vote for a map when the match is in vote phase
+
+### !p (username)
+
+(Only team captains). Picks a teammate from the list. Only available during pick phase.
+
+### !subme
+
+Lets the player who sent the message look for a substitute
+
+### !subfor (username)
+
+Lets the player who sent the message get in the team of the player looking for a substitue.
+
+### !capme
+
+Lets the player who sent the message look for someone to replace their role as a captain.
+
+### !capfor (username)
+
+Lets the player who sent the message get the captain role in a team.
 
 ## Stay in touch
 
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- Author - [Hugo Levick](https://github.com/HugoLevick)
+- Twitter - [@hlevickh](https://twitter.com/hlevickh)
 
 ## License
 

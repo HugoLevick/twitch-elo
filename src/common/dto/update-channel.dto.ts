@@ -32,6 +32,10 @@ export class UpdateOptionsDto {
   @IsOptional()
   requireVotePhase?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  stackMatches?: boolean;
+
   //How many seconds have to pass to cancel a match in votation / pick phase
   @IsNumber()
   @Min(0)

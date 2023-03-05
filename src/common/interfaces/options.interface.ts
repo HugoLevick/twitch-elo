@@ -6,4 +6,5 @@ export interface Options {
   cancelVoteTimeout: number;
   cancelPickTimeout: number;
   requireVotePhase: boolean;
+  stackMatches: boolean;
 }

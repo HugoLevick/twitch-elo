@@ -52,11 +52,20 @@ interface Subs {
 export class MatchesService implements OnModuleInit {
   //! Add to cancelMatch, cancelAllActive when adding a property
   private logger = new Logger('MatchesService');
+  //Object that stores voting phase info
   private mapVoting: Voting = {};
+  //Object that stores pick phase info
   private matchPicks: Picks = {};
+  //Object that stores subme info
   private lookingForSub: Subs = {};
+  //Object that stores capme info
   private lookingForCap: Subs = {};
+  //Elo algo
   private eloRank = new EloRank(30);
+  //Saves staggered matches if enabled
+  private pendingMatches: Match[] = [];
+  //Helper for staggered matches
+  private usingChat: boolean = false;
 
   constructor(
     private readonly tmiService: TmiService,
@@ -77,7 +86,9 @@ export class MatchesService implements OnModuleInit {
   async onModuleInit() {
     const previousMatches = await this.matchesRepository
       .createQueryBuilder('matches')
-      .where('matches.status IN("IN_PROGRESS","QUEUEING")')
+      .where(
+        'matches.status IN("IN_PROGRESS","QUEUEING") AND matches.deletedAt IS NULL',
+      )
       .getMany();
 
     for (const match of previousMatches) {
@@ -109,6 +120,8 @@ export class MatchesService implements OnModuleInit {
     this.mapVoting = {};
     this.lookingForCap = {};
     this.lookingForSub = {};
+    this.pendingMatches = [];
+    this.usingChat = false;
     return true;
   }
 
@@ -127,10 +140,14 @@ export class MatchesService implements OnModuleInit {
 
     if (addDevDto.skipVote) {
       setTimeout(async () => {
-        if (this.mapVoting[match.id])
-          clearTimeout(this.mapVoting[match.id].timer);
-        if (skipVote) await this.decideMap(match);
-        await this.startPickPhase(match);
+        try {
+          if (this.mapVoting[match.id])
+            clearTimeout(this.mapVoting[match.id].timer);
+          if (skipVote) await this.decideMap(match.id);
+          await this.startPickPhase(match.id);
+        } catch (error) {
+          this.logger.error(`Dev failed: ${error}`);
+        }
       }, 10000);
     }
   }
@@ -232,57 +249,97 @@ export class MatchesService implements OnModuleInit {
 
   //Sets the match status to In Progress, chooses captains, creates empty teams (only captains), and starts voting timer if options is set to it
   async startMatch(match: Match) {
-    const { bottedChannel, requireVotePhase } = this.commonService.options;
+    const { bottedChannel, requireVotePhase, stackMatches } =
+      this.commonService.options;
+
+    let teamA: MatchTeams, teamB: MatchTeams;
     match.status = MatchStatuses.inProgress;
+
     const playerUsernames = match.players.map((p) => p.username);
-    //prettier-ignore
-    let message = `${playerUsernames.map((p) => `@${p}`).join(', ')} match #${match.id} is ready!`;
-    this.tmiService.say(bottedChannel, message);
 
-    const sortedPlayers = match.players.sort((a, b) => {
-      if (a.points < b.points) return 1;
-      else if (a.points > b.points) return -1;
-      else return 0;
-    });
+    if (!match.teams?.length) {
+      //If match doesnt already have teams, create them. A match can already have teams if its a pending match from the queue
+      const sortedPlayers = match.players.sort((a, b) => {
+        if (a.points < b.points) return 1;
+        else if (a.points > b.points) return -1;
+        else return 0;
+      });
 
-    const CaptainB = sortedPlayers[0];
-    const CaptainA = sortedPlayers[1];
+      const CaptainB = sortedPlayers[0];
+      const CaptainA = sortedPlayers[1];
 
-    if (!CaptainA || !CaptainB) {
-      this.logger.error(
-        'There was an error selecting captains, ' + sortedPlayers,
+      if (!CaptainA || !CaptainB) {
+        this.logger.error(
+          'There was an error selecting captains, ' + sortedPlayers,
+          match,
+        );
+        await this.cancelMatch(
+          match.id,
+          'There was an error selecting captains',
+        );
+        return;
+      }
+
+      teamA = this.matchTeamsRepository.create({
         match,
-      );
-      await this.cancelMatch(match.id, 'There was an error selecting captains');
-      return;
+        captain: CaptainA,
+        players: [CaptainA],
+        letter: MatchesTeamsEnum.a,
+      });
+
+      teamB = this.matchTeamsRepository.create({
+        match,
+        captain: CaptainB,
+        players: [CaptainB],
+        letter: MatchesTeamsEnum.b,
+      });
+      await this.matchTeamsRepository.save([teamA, teamB]);
+      match.teams = [teamA, teamB];
+
+      try {
+        await this.matchesRepository.save(match);
+      } catch (error) {
+        console.log(error);
+        throw error;
+      }
+    } else {
+      [teamA] = match.teams.filter((t) => t.letter === 'A');
+      [teamB] = match.teams.filter((t) => t.letter === 'B');
     }
 
-    const teamA = this.matchTeamsRepository.create({
-      match,
-      captain: CaptainA,
-      players: [CaptainA],
-      letter: MatchesTeamsEnum.a,
-    });
+    if ((!this.usingChat && stackMatches) || !stackMatches) {
+      //If stackmatches is active, this can only happen when the chat is free, otherwise it will always happen
 
-    const teamB = this.matchTeamsRepository.create({
-      match,
-      captain: CaptainB,
-      players: [CaptainB],
-      letter: MatchesTeamsEnum.b,
-    });
+      this.usingChat = true;
+      //prettier-ignore
+      let message = `${playerUsernames.map((p) => `@${p}`).join(', ')} match #${match.id} is ready!`;
+      await this.tmiService.say(bottedChannel, message);
 
-    this.tmiService.say(
-      bottedChannel,
-      `Team Captains: ${teamA.captain.username}(A) | ${teamB.captain.username}(B) use !capme to look for a captain`,
-    );
+      this.tmiService.say(
+        bottedChannel,
+        `#${match.id} captains: ${teamA.captain.username}(A) | ${teamB.captain.username}(B) use !capme to look for a captain`,
+      );
 
-    await this.matchTeamsRepository.save([teamA, teamB]);
-    match.teams = [teamA, teamB];
+      //If requires a vote phase, start it. otherwise select a random map
+      if (requireVotePhase) await this.startVotingPhase(match);
+      else await this.selectRandomMap(match);
+    } else if (this.usingChat && stackMatches) {
+      //If chat is busy then add the match to the pending queue
+      //prettier-ignore
+      let message = `${playerUsernames.map((p) => `@${p}`).join(', ')} match #${match.id} is pending! It will start when the current match ends the pick phase`;
+      this.tmiService.say(
+        bottedChannel,
+        `#${match.id} captains: ${teamA.captain.username}(A) | ${teamB.captain.username}(B)`,
+      );
+      await this.tmiService.say(bottedChannel, message);
+      this.pendingMatches.push(match);
+    }
+  }
 
-    await this.matchesRepository.save(match);
-
-    if (requireVotePhase) await this.startVotingPhase(match);
-    else await this.selectRandomMap(match);
+  async startNextMatch() {
+    this.usingChat = false;
+    const nextMatch = this.pendingMatches.shift();
+    if (nextMatch) await this.startMatch(nextMatch);
   }
 
   async startVotingPhase(match: Match) {
@@ -333,22 +390,36 @@ export class MatchesService implements OnModuleInit {
   }
 
   async selectRandomMap(match: Match) {}
+
   async cancelMatch(matchId: number, reason: string) {
     try {
-      const match = await this.findOne(matchId);
-      for (const player of match.players) {
-        delete this.lookingForSub[player.id];
-      }
+      //Soft delete match
       await this.remove(matchId);
-      delete this.mapVoting[matchId];
-      delete this.matchPicks[matchId];
+      //Cancel all submes and capmes for the map
       this.cancelSubs(matchId, { subs: true, caps: true });
+      //Delete vote and pick info
+      const voteTimer = this.mapVoting[matchId]?.timer;
+      const pickTimer = this.matchPicks[matchId]?.timer;
+      if (voteTimer) clearTimeout(voteTimer);
+      delete this.mapVoting[matchId];
+      if (pickTimer) clearTimeout(pickTimer);
+      delete this.matchPicks[matchId];
+      //If the match was pending, remove from queue. Else, start the next match
+      const isPending = this.pendingMatches.findIndex((m) => m.id === matchId);
+
+      if (isPending !== -1) {
+        this.pendingMatches.splice(isPending, 1);
+      } else {
+        await this.startNextMatch();
+      }
+
       await this.tmiService.say(
         this.commonService.options.bottedChannel,
         `Match #${matchId} canceled: ${reason}`,
       );
       return true;
     } catch (error) {
+      console.log(error);
       this.logger.error(`Error canceling match ${matchId}: ${error.message}`);
       return false;
     }
@@ -385,8 +456,8 @@ export class MatchesService implements OnModuleInit {
     ) {
       clearTimeout(this.mapVoting[match.id].timer);
       try {
-        await this.decideMap(match);
-        await this.startPickPhase(match);
+        await this.decideMap(match.id);
+        await this.startPickPhase(match.id);
         this.cancelSubs(match.id, { caps: true });
       } catch (error) {
         this.logger.error(error.message);
@@ -398,8 +469,9 @@ export class MatchesService implements OnModuleInit {
   }
 
   //Decides maps provided with this.mapVoting based on votes
-  async decideMap(match: Match) {
+  async decideMap(matchId: number) {
     //Decide map
+    const match = await this.findOne(matchId);
     const { bottedChannel } = this.commonService.options;
 
     let mostVoted: { votes: number; voteId: number }[] = [];
@@ -436,8 +508,9 @@ export class MatchesService implements OnModuleInit {
     return true;
   }
 
-  //Deletes the match from the mapVoting object
-  async startPickPhase(match: Match) {
+  //Deletes the match from the mapVoting object and adds the information required to the matchPicks
+  async startPickPhase(matchId: number) {
+    const match = await this.findOne(matchId);
     delete this.mapVoting[match.id];
     const { cancelPickTimeout, bottedChannel, pickOrder } =
       this.commonService.options;
@@ -633,6 +706,12 @@ export class MatchesService implements OnModuleInit {
       bottedChannel,
       `Team B: (${this.teamPlayersToString(teamB)})`,
     );
+
+    await this.tmiService.say(bottedChannel, `Map: ${match.map.name}`);
+
+    setTimeout(async () => {
+      await this.startNextMatch();
+    }, 8000);
   }
 
   async reportLose(username: string) {
@@ -755,10 +834,17 @@ export class MatchesService implements OnModuleInit {
     const toSubOut = this.lookingForSub[toSubUsername].player;
     const toSubIn = await this.playersService.findOne(username);
 
+    if (await this.findPlaying(toSubIn.id).catch(() => false)) {
+      throw new Error(
+        `Player ${toSubUsername} can't sub beacuse they're already in a game`,
+      );
+    }
+
     const subTeamQuery = await this.matchTeamsRepository
       .createQueryBuilder('team')
       .select('team.id')
       .leftJoinAndSelect('team.players', 'player')
+      .leftJoinAndSelect('team.match', 'match')
       .where('player.id=:subId AND match.status="IN_PROGRESS"', {
         subId: toSubOut.id,
       })
@@ -790,6 +876,15 @@ export class MatchesService implements OnModuleInit {
     await this.matchesRepository.save(subMatch);
 
     await this.matchTeamsRepository.save(subTeam);
+
+    const queue = await this.findLatest();
+
+    if (queue) {
+      queue.players = queue.players.filter((p) => p.id !== toSubIn.id);
+      await this.matchesRepository.save(queue);
+    }
+
+    delete this.lookingForSub[username];
 
     await this.tmiService.say(
       bottedChannel,
@@ -872,6 +967,8 @@ export class MatchesService implements OnModuleInit {
     capTeam.players = [toCapIn];
 
     await this.matchTeamsRepository.save(capTeam);
+
+    delete this.lookingForCap[username];
 
     await this.tmiService.say(
       bottedChannel,

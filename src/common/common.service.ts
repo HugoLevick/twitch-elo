@@ -39,19 +39,22 @@ export class CommonService implements OnModuleInit {
   async updateOptions(updateOptionsDto: UpdateOptionsDto) {
     const updatedOptions = { ...this.options, ...updateOptionsDto };
 
+    //Pick order lenght must be the number of players per team * 2 to get the total number of players, it then needs to be substracted 2 because 2 people are captains and they cannot be picked
     if (
-      updatedOptions.pickOrder.length !== updatedOptions.playersPerTeam * 2 ||
+      updatedOptions.pickOrder.length !==
+        updatedOptions.playersPerTeam * 2 - 2 ||
       !updatedOptions.pickOrder.match(/^[AB]+$/)
     )
-      if (updatedOptions.playersPerTeam === 1) updatedOptions.pickOrder = 'AB';
-      else
+      if (updatedOptions.playersPerTeam !== 1)
         throw new BadRequestException(
           'Please provide a correct pick order. It must include only uppercase A and B and it should let both captains pick all the players',
         );
+      else updatedOptions.pickOrder = 'AB';
 
     if (
-      updatedOptions.pickOrder.match(/A/g).length !==
-      updatedOptions.playersPerTeam
+      updatedOptions.pickOrder.match(/A/g)?.length !==
+        updatedOptions.playersPerTeam - 1 &&
+      updatedOptions.playersPerTeam > 1
     )
       throw new BadRequestException(
         'One team cannot pick more players than the other, please review the pick order',

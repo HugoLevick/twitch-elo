@@ -7,6 +7,7 @@ const pickTimeoutHtml = document.getElementById('pickTimeout');
 const gameSelect = document.getElementById('gameId');
 const settingsForm = document.getElementById('settings-form');
 const requireVoteHtml = document.getElementById('requireVote');
+const stackMatchesHtml = document.getElementById('stackMatches');
 
 async function setSettings() {
   options = await fetch('/api/config')
@@ -18,6 +19,7 @@ async function setSettings() {
       voteTimeoutHtml.value = options.cancelVoteTimeout;
       pickTimeoutHtml.value = options.cancelPickTimeout;
       requireVoteHtml.checked = options.requireVotePhase;
+      stackMatchesHtml.checked = options.stackMatches;
       return options;
     });
 
@@ -55,6 +57,7 @@ async function setSettings() {
       cancelVoteTimeout: parseInt(voteTimeoutHtml.value),
       cancelPickTimeout: parseInt(pickTimeoutHtml.value),
       requireVotePhase: requireVoteHtml.checked,
+      stackMatches: stackMatchesHtml.checked,
     };
 
     const response = await fetch('/api/config/update', {
