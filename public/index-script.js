@@ -48,7 +48,6 @@ async function setSettings() {
 
     if (!doContinue) return;
 
-    console.log(parseInt(gameSelect.value));
     const newOptions = {
       bottedChannel: bottedChannelHtml.value,
       pickOrder: pickOrderHtml.value,

@@ -4,10 +4,13 @@ import { MatchesService } from '../matches/matches.service';
 import { Match } from '../matches/entities/match.entity';
 import { CommonService } from '../common/common.service';
 import { PlayersService } from '../players/players.service';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class TmiService {
   constructor(
+    private readonly configService: ConfigService,
+
     private readonly playersService: PlayersService,
 
     @Inject(forwardRef(() => MatchesService))
@@ -28,8 +31,8 @@ export class TmiService {
         //debug: true,
       },
       identity: {
-        username: 'henzzito',
-        password: 'oauth:c013cz4hbrzxjwdepbpvzphxl5nl9a',
+        username: this.configService.getOrThrow('BOT_USERNAME'),
+        password: this.configService.getOrThrow('BOT_PASSWORD'),
       },
       channels: [bottedChannel],
     });

@@ -26,7 +26,9 @@ export class CommonService implements OnModuleInit {
 
   private async setOptions() {
     try {
-      const file = await fs.readFile('./src/options.json');
+      const file = await fs.readFile(
+        'C:\\Program Files\\twitch-elo\\options.json',
+      );
       this.options = await JSON.parse(file.toString());
       this.tmiService.startBot(this.options.bottedChannel);
     } catch (error) {
@@ -44,12 +46,13 @@ export class CommonService implements OnModuleInit {
       updatedOptions.pickOrder.length !==
         updatedOptions.playersPerTeam * 2 - 2 ||
       !updatedOptions.pickOrder.match(/^[AB]+$/)
-    )
+    ) {
       if (updatedOptions.playersPerTeam !== 1)
         throw new BadRequestException(
           'Please provide a correct pick order. It must include only uppercase A and B and it should let both captains pick all the players',
         );
       else updatedOptions.pickOrder = 'AB';
+    }
 
     if (
       updatedOptions.pickOrder.match(/A/g)?.length !==
@@ -63,7 +66,10 @@ export class CommonService implements OnModuleInit {
     try {
       await this.matchesService.cancelAllActive();
       this.options = updatedOptions;
-      await fs.writeFile('./src/options.json', JSON.stringify(this.options));
+      await fs.writeFile(
+        'C:\\Program Files\\twitch-elo\\options.json',
+        JSON.stringify(this.options),
+      );
       await this.tmiService.stopBot();
       await this.tmiService.startBot(this.options.bottedChannel);
       return true;
