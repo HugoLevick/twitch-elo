@@ -90,6 +90,7 @@ export class TmiService {
             }
             break;
 
+          case '!q':
           case '!queue':
             const match = await this.matchesService.findLatest();
             if (!match) {
@@ -130,7 +131,9 @@ export class TmiService {
             }
             break;
 
+          case '!pick':
           case '!p':
+            if (!params[0]) return;
             const pickedUsername = this.formatUsername(params[0]);
             if (!pickedUsername) return;
             try {
@@ -141,14 +144,18 @@ export class TmiService {
             break;
 
           case '!rl':
-            if (params[0] && this.hasPrivilege(tags)) {
-              await this.matchesService.reportLose(
-                this.formatUsername(params[0]),
-              );
-            } else {
-              await this.matchesService.reportLose(tags.username);
+            try {
+              if (params[0] && this.hasPrivilege(tags)) {
+                await this.matchesService.reportLose(
+                  this.formatUsername(params[0]),
+                );
+              } else {
+                await this.matchesService.reportLose(tags.username);
+              }
+            } catch (error) {
+              console.log(error);
+              this.logger.error(error.message);
             }
-
           case '!cancelmatch':
             if (this.hasPrivilege(tags)) {
               const matchId = parseInt(params[0]);
@@ -168,8 +175,21 @@ export class TmiService {
 
           case '!elopoints':
             try {
-              const points = await this.playersService.getElo(tags.username);
-              await this.say(channel, `@${tags.username}: ${points} points`);
+              let points: number;
+              if (params[0]) {
+                points = await this.playersService.getElo(
+                  this.formatUsername(params[0]),
+                );
+              } else {
+                points = await this.playersService.getElo(tags.username);
+              }
+              if (points)
+                await this.say(
+                  channel,
+                  `@${tags.username}: ${
+                    params[0] ? `${params[0]} has` : ''
+                  } ${points} points`,
+                );
             } catch (error) {
               this.logger.error(error.message);
             }
@@ -211,8 +231,25 @@ export class TmiService {
               return;
             }
             break;
+
+          case '!elolb':
+          case '!leaderboard':
+            const str = await this.matchesService.getLeaderboard();
+            this.say(channel, str);
+            break;
         }
       }
+    });
+
+    client.on('disconnected', () => {
+      this.logger.error('Disconnected from Twitch.');
+    });
+
+    client.on('connecting', () => {
+      this.logger.log('Trying to connect to Twitch...');
+    });
+    client.on('connected', () => {
+      this.logger.log('Connected to Twitch.');
     });
   }
 
@@ -253,7 +290,7 @@ export class TmiService {
   }
 
   private hasPrivilege(tags) {
-    return tags.mod || tags.badges.broadcaster;
+    return tags.mod || tags.badges?.broadcaster;
   }
 
   private formatUsername(string: string) {

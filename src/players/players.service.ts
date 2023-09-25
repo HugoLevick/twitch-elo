@@ -55,7 +55,21 @@ export class PlayersService {
   }
 
   async getElo(username: string) {
-    const player = await this.findOrCreate(username);
-    return player.points;
+    try {
+      const player = await this.findOne(username);
+      return player.points;
+    } catch (error) {
+      return undefined;
+    }
+  }
+
+  async getMostElo() {
+    return this.playerRepository.find({
+      order: {
+        points: 'DESC',
+      },
+
+      take: 10,
+    });
   }
 }

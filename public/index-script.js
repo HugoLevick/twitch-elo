@@ -18,7 +18,7 @@ async function setSettings() {
       pickOrderHtml.value = options.pickOrder;
       voteTimeoutHtml.value = options.cancelVoteTimeout;
       pickTimeoutHtml.value = options.cancelPickTimeout;
-      requireVoteHtml.checked = options.requireVotePhase;
+      //requireVoteHtml.checked = options.requireVotePhase;
       stackMatchesHtml.checked = options.stackMatches;
       return options;
     });
@@ -56,7 +56,7 @@ async function setSettings() {
       gameId: parseInt(gameSelect.value),
       cancelVoteTimeout: parseInt(voteTimeoutHtml.value),
       cancelPickTimeout: parseInt(pickTimeoutHtml.value),
-      requireVotePhase: requireVoteHtml.checked,
+      //requireVotePhase: requireVoteHtml.checked,
       stackMatches: stackMatchesHtml.checked,
     };
 

@@ -11,6 +11,7 @@ import { GamesModule } from './games/games.module';
 import { MapsModule } from './maps/maps.module';
 import { join } from 'path';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -42,6 +43,8 @@ import { ServeStaticModule } from '@nestjs/serve-static';
     MapsModule,
 
     CommonModule,
+
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

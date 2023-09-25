@@ -201,7 +201,6 @@ export class MatchesService implements OnModuleInit {
   }
 
   async addPlayerToQueue(username: string) {
-    //TODO: Check if player is in a match in progress
     const playersPerTeam = this.commonService.options.playersPerTeam;
     const player = await this.playersService.findOrCreate(username);
     const inMatch = await this.matchesRepository
@@ -836,7 +835,7 @@ export class MatchesService implements OnModuleInit {
 
     if (await this.findPlaying(toSubIn.id).catch(() => false)) {
       throw new Error(
-        `Player ${toSubUsername} can't sub beacuse they're already in a game`,
+        `Player ${username} can't sub beacuse they're already in a game`,
       );
     }
 
@@ -1006,5 +1005,14 @@ export class MatchesService implements OnModuleInit {
     return this.matchesRepository.find({
       where: { status: Equal(MatchStatuses.inProgress) },
     });
+  }
+
+  async getLeaderboard() {
+    const players = await this.playersService.getMostElo();
+    let lbStr = 'Top Elo: ';
+    for (const pl of players) {
+      lbStr += `${pl.username} - ${pl.points}p / `;
+    }
+    return lbStr;
   }
 }
